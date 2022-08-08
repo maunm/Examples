@@ -1,0 +1,61 @@
+<?php
+
+namespace Drupal\commerce_placetopay;
+
+use Drupal\commerce_placetopay\CheckoutAuth;
+
+/**
+ * Class PendingPaymentsService
+ * @package Drupal\commerce_placetopay\Services
+ */
+class PendingPaymentsService {
+
+  /**
+   * The checkout auth services.
+   *
+   * @var \Drupal\commerce_placetopay\CheckoutAuth
+   */
+  protected $checkoutauth;
+
+  /**
+   *  PendingPaymentsService constructor.
+   */
+  public function __construct() {}
+
+
+  /**
+   * Test
+   */
+  public function updatePendingPayments()
+  {
+    // Get pending payments.
+    $payments = \Drupal::entityTypeManager()
+      ->getStorage('commerce_payment')
+      ->loadByProperties(['state' => 'authorization']);
+
+    /** @var \Drupal\commerce_payment\Entity\Payment $payment */
+    foreach ($payments as $payment) {
+      $request_id = $payment->getOrder()->getData('request_id');
+      if ($request_id && !is_null($request_id)) {
+        // Get PaymentGateway configurations.
+        $configuration = $payment->getPaymentGateway()->getPluginConfiguration();
+
+        // Request the payment status.
+        $checkout_auth = new CheckoutAuth($configuration);
+        $response = $checkout_auth->getTransactionInfo($request_id);
+
+        // Update the payment status.
+        if ($response && isset($response->status->status)) {
+          if ($response->status->status === 'APPROVED') {
+            $payment->setState('completed');
+            $payment->save();
+          }
+          if ($response->status->status === 'REJECTED') {
+            $payment->setState('authorization_voided');
+            $payment->save();
+          }
+        }
+      }
+    }
+  }
+}

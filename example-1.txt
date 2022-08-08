@@ -1,0 +1,52 @@
+<?php
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function commerce_placetopay_form_alter(&$form, FormStateInterface $form_state, $form_id)  {
+ if ($form_id == 'commerce_checkout_flow_multistep_default' || $form_id == 'user_register_form') {
+  array_unshift($form['#validate'], 'checkout_form_validate');
+ }
+}
+
+/**
+ * Validate commerce forms.
+ */
+function checkout_form_validate($form, &$form_state)  {
+  $values = $form_state->getValues();
+  if ($values) {
+    // Validate email structure on normal register.
+    if (isset($values['mail'])) {
+      $email = $values['mail'];
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $form_state->setErrorByName('mail', t('Email format incorrect. Example: example@domain.com'));
+      }
+    }
+
+    // Validate email structure on commerce register.
+    if (isset($values['login']['register'])) {
+      $registerValues = $values['login']['register'];
+      $email = $registerValues['mail'];
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $form_state->setErrorByName('mail', t('Email format incorrect. Example: example@domain.com'));
+      }
+    }
+
+    // Validate name and last name on billing information.
+    if (isset($values["payment_information"]["billing_information"]["address"])) {
+      foreach ($values["payment_information"]["billing_information"]["address"] as $address) {
+        if (isset($address["address"])) {
+          $given_name = $address["address"]['given_name'];
+          $family_name = $address["address"]['family_name'];
+          $regex = "/^[a-zA-ZáÁéÉíÍóÓúÚñÑ' ]+$/";
+          if (!preg_match($regex, $given_name)) {
+            $form_state->setErrorByName('given_name', t('The name can only contain valid letters.'));
+          }
+          if (!preg_match($regex, $family_name)) {
+            $form_state->setErrorByName('family_name', t('The last name can only contain valid letters.'));
+          }
+        }
+      }
+    }
+  }
+}
